@@ -1,11 +1,15 @@
 Esquema de comunicación.
 
-El proposito del repositorio es el de almacenar el script que simulara un esquema de comunicación. Este se actualizara segun sea requerido y de acuerdo con los avances realizados en clase.
+Descripción del esquema: Para mi esquema se me ocurrio trabajar con base en un problema que yo tengo a la hora de escuchar musica con unos audifonos bluetooth mientras estoy conectado a la red de wifi. Lo que sucede es que, al reproducir una canción, esta empieza a ir mas rapido o mas lento por momentos, haciendo que la canción se escuche muy diferente. 
 
-La fuente de información, de comienzo, sera una cadena de texto simple pero larga, lo suficiente para poder trabajar con los siguientes procesos. Esto tambien para poder trabajar de manera mas sencilla la traducción a codigo binario, necesaria para trabajar con los siguientes pasos.
+Fuente de información: En este caso la fuente es una canción, puede verse tambien como un reproductor de musica de su preferencia. 
 
-El metodo de transmisión se encargara de codificar la cadena de texto, en mi caso opte por sumar un uno al codigo binario que representa la cadena en transmision. De igual forma al momento de llegar a la parte del receptor, la decodificación sera restandole el uno que se le agrego al codigo binario. 
+Transmisor: Usando mi caso particular, podemos imaginar a un celular como el transmisor, este codifica la señal y la manda mediante el canal.
 
-Para el canal empleare una velocidad de 10Mb/s y por la parte del ruido se modificara la información de la cadena y tambien empleare una reducción de velocidad. Para este ultimo punto es importante mencionar que usare ciclos for para el envio de la información mediante el canal.
+Canal: Decidi que el canal sea el mismo que supongo es mi problema, mediante Bluetooth, ademas de que es un canal muy usado para este tipo de cuestiones.
 
-![Diagrama en blanco](https://github.com/v-Chriz-v/Teor-a-de-la-Info/assets/54335343/0fafcfc2-fd88-4aad-9378-7a8c087db8c1)
+Ruido: Como mencione, lo que provoca el ruido podria ser la señal de wifi que, en este caso, hace que el ruido agregado sea una variación en la velocidad de reproducción de musica.
+
+Receptor: El receptor seran los audifonos bluetooth y, al pasar por el canal y las afectaciones del ruido, la canción reproducida no seria la misma, teniendo la variación de velocidad ya mencionada.
+
+Destino: Al final la canción es escuchada por el usuario pero con las modificaciones ya mencionadas.
