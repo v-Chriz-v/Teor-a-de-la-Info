@@ -1,43 +1,65 @@
 from pydub import AudioSegment
 import random
 
-# Cargar la canción
-cancion = AudioSegment.from_file("cancion.mp3", format="mp3")
+def encriptar(data):
+    return bytes((byte + 1) & 0xFF for byte in data)
 
-# Convertir la canción a binario
-datos_binarios = cancion.raw_data
+def desencriptar(data):
+    return bytes((byte - 1) & 0xFF for byte in data)
 
-# Función de cifrado básica (XOR con una clave)
-def encriptar(data, key):
-    datos_encriptados = bytearray()
-    for byte in data:
-        datos_encriptados.append(byte ^ key)
-    return datos_encriptados
+# Carga la canción original
+cancion_original = AudioSegment.from_file("cancion.mp3", format="mp3")
 
-# Encriptar los datos binarios
-llave_encriptacion = random.randint(0, 255)
-datos_encriptados = encriptar(datos_binarios, llave_encriptacion)
+# Convierte la canción a binario y encripta
+datos_binarios = cancion_original.raw_data
+datos_encriptados = encriptar(datos_binarios)
 
-# Simular ruido: variación de velocidad
-def simular_ruido(segment):
-    duracion_segmento = 1000  # Establece la duración mínima en milisegundos
-    if len(segment) < duracion_segmento:
-        return segment
-    speed_factor = random.uniform(0.3, 1.9)
-    return segment.speedup(speed_factor)
+# Función para simular ruido: variación de velocidad
+def ruido(segmento):
+    probabilidad_de_cambio = 0.4  # Probabilidad de cambio por segmento
+    if len(segmento) < 150:  # Evitar cambios de velocidad en segmentos muy cortos
+        return segmento
+    if random.random() < probabilidad_de_cambio:
+        speed_factor = random.uniform(0.6, 1.6)  # Rango de velocidad
+        return segmento.speedup(speed_factor)
+    return segmento
 
-# Simular el canal y ruido
-tamaño_segmento = 10000
-segmentos_encriptados = [AudioSegment(data=datos_encriptados[i:i+tamaño_segmento], frame_rate=cancion.frame_rate, sample_width=cancion.sample_width, channels=cancion.channels) for i in range(0, len(datos_encriptados), tamaño_segmento)]
-noisy_segments = [simular_ruido(segment) for segment in segmentos_encriptados]
+# Duración máxima de un segmento en milisegundos
+duracion_maxima_segmento = 5000
 
-# Función de descifrado básica
-def desencriptar(data, key):
-    return encriptar(data, key)
+segmentos_modificados = []
 
-# Reconstruir la señal de audio
-datos_reconstruidos = bytes([byte ^ llave_encriptacion for segment in noisy_segments for byte in segment.raw_data])
-cancion_reconstruida = AudioSegment(data=datos_reconstruidos, frame_rate=cancion.frame_rate, sample_width=cancion.sample_width, channels=cancion.channels)
+# Divide los datos encriptados en segmentos y aplica ruido (cambios de velocidad) aleatoriamente
+inicio = 0
+while inicio < len(datos_encriptados):
+    duracion_segmento = random.randint(2500, duracion_maxima_segmento)
+    fin = min(inicio + duracion_segmento, len(datos_encriptados))
 
-# Guardar la canción reconstruida en un archivo
-cancion_reconstruida.export("cancion_reconstruida.mp3", format="mp3")
+    # Ajusta la longitud de los datos encriptados si es necesario
+    if (fin - inicio) % (cancion_original.sample_width * cancion_original.channels) != 0:
+        fin += (cancion_original.sample_width * cancion_original.channels) - ((fin - inicio) % (cancion_original.sample_width * cancion_original.channels))
+
+    # Extrae el segmento actual
+    segmento = AudioSegment(data=datos_encriptados[inicio:fin], frame_rate=cancion_original.frame_rate, sample_width=cancion_original.sample_width, channels=cancion_original.channels)
+
+    # Aplica la función de ruido al segmento actual
+    segmento_modificado = ruido(segmento)
+
+    # Agrega el segmento modificado al resultado
+    segmentos_modificados.append(segmento_modificado)
+
+    # Actualiza el punto de inicio para el próximo segmento
+    inicio = fin
+
+# Combina todos los segmentos modificados en una sola canción
+cancion_modificada = sum(segmentos_modificados)
+
+# Desencriptar los datos
+datos_con_ruido = b''.join(segmento.raw_data for segmento in segmentos_modificados)
+datos_desencriptados = desencriptar(datos_con_ruido)
+
+# Reconstruir la canción modificada con ruido
+cancion_modificada_con_ruido = AudioSegment(data=datos_desencriptados, frame_rate=cancion_original.frame_rate, sample_width=cancion_original.sample_width, channels=cancion_original.channels)
+
+# Guardar la canción modificada con ruido en un archivo
+cancion_modificada_con_ruido.export("cancion_reconstruida.mp3", format="mp3")
