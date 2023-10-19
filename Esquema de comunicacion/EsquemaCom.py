@@ -1,23 +1,16 @@
 import random
 import time
 import math
+import wave
 import matplotlib.pyplot as plt
 import numpy as np
 from pydub import AudioSegment
 from collections import Counter, defaultdict
 import heapq
-
-#--------------------------------------------------------------------------------------------------------------------#
-
-# Función de encriptación
-def encriptar(data):
-    return bytes((byte + 1) & 0xFF for byte in data)
-
-#--------------------------------------------------------------------------------------------------------------------#
-
-# Función de desencriptación
-def desencriptar(data):
-    return bytes((byte - 1) & 0xFF for byte in data)
+from huffman import contar_frecuencias, construir_arbol_huffman, comprimir_huffman, descomprimir_huffman
+from ShannonFano import contar_frecuencias, construir_arbol_shannon_fano, comprimir_shannon_fano, descomprimir_shannon_fano
+from Britate_Variable import comprimir_vbr, descomprimir_vbr
+from RLE import comprimir_RLE, descomprimir_RLE
 
 #--------------------------------------------------------------------------------------------------------------------#
 
@@ -30,12 +23,13 @@ def Canal(segmentos):
     for segmento in segmentos:
 
         # Probabilidad de error en la transmisión
-        probabilidad_de_error = random.random() 
+        probabilidad_de_error = random.random()
+        # probabilidad_de_error = 0.3 
 
         entropia = calcular_Entropia(probabilidad_de_error)
         entropias.append(entropia)
 
-        if probabilidad_de_error <= 0.4 and probabilidad_de_error >= 0.6:
+        if probabilidad_de_error >= 0.4 and probabilidad_de_error <= 0.6:
 
             # Segmento silencioso en caso de error
             datos_recibidos.append(AudioSegment.silent(len(segmento)))  
@@ -43,7 +37,7 @@ def Canal(segmentos):
         else:
 
             # Aplicar cambio de velocidad antes de transmitir
-            segmento_con_ruido = simular_ruido(segmento, probabilidad_de_error)
+            segmento_con_ruido = simular_ruido(segmento)
             datos_recibidos.append(segmento_con_ruido)
 
     return datos_recibidos, entropias
@@ -51,16 +45,22 @@ def Canal(segmentos):
 #--------------------------------------------------------------------------------------------------------------------#
 
 # Función para simular ruido: variación de velocidad
-def simular_ruido(segmento, probabilidad_de_error):
+def simular_ruido(segmento):
 
     # Evitar cambios de velocidad en segmentos muy cortos
     if len(segmento) < 150: 
         return segmento
 
-    if probabilidad_de_error >= 0.4 and probabilidad_de_error <= 0.6:
+    speed_factor = random.uniform(0.5, 1.8)
 
-        speed_factor = random.uniform(0.5, 1.8)
-        return segmento.speedup(speed_factor)
+    # Añade una verificación para evitar duración de fade igual a cero
+    if len(segmento) > 0:
+        segmento_con_ruido = segmento.speedup(speed_factor)
+
+    else:
+        segmento_con_ruido = segmento
+
+        return segmento_con_ruido
 
     return segmento
 
@@ -70,80 +70,12 @@ def calcular_Entropia(probabilidad_de_error):
 
     probabilidad_de_exito = 1 - probabilidad_de_error
 
-    # Calculamos la entropía
     entropia = -(probabilidad_de_error * math.log2(probabilidad_de_error) + probabilidad_de_exito * math.log2(probabilidad_de_exito))
 
     return entropia
 
 #--------------------------------------------------------------------------------------------------------------------#
 
-# Función para contar las frecuencias de bits en los datos binarios
-def contar_frecuencias(datos_binarios):
-    return Counter(datos_binarios)
-
-#--------------------------------------------------------------------------------------------------------------------#
-
-# Función para construir un árbol de Huffman
-def construir_arbol_huffman(frecuencias):
-
-    pila = [[peso, [bit, ""]] for bit, peso in frecuencias.items()]
-    heapq.heapify(pila)
-    
-    while len(pila) > 1:
-
-        baja = heapq.heappop(pila)
-        sube = heapq.heappop(pila)
-
-        for par in baja[1:]:
-            par[1] = '0' + par[1]
-
-        for par in sube[1:]:
-            par[1] = '1' + par[1]
-
-        heapq.heappush(pila, [baja[0] + sube[0]] + baja[1:] + sube[1:])
-    
-    return sorted(heapq.heappop(pila)[1:], key=lambda p: (len(p[-1]), p))
-
-#--------------------------------------------------------------------------------------------------------------------#
-
-# Función para comprimir datos usando Huffman
-def comprimir_huffman(datos_binarios):
-
-    frecuencias = contar_frecuencias(datos_binarios)
-
-    arbol_huffman = construir_arbol_huffman(frecuencias)
-
-    tabla_huffman = {bit: codigo for bit, codigo in arbol_huffman}
-
-    datos_codificados = "".join(tabla_huffman[bit] for bit in datos_binarios)
-
-    return datos_codificados.encode("utf-8"), tabla_huffman
-
-#--------------------------------------------------------------------------------------------------------------------#
-
-# Función para decodificar datos usando Huffman
-def descomprimir_huffman(datos_codificados, tabla_huffman):
-
-    datos_binarios = []
-    bits_actuales = ""
-    
-    for bit in datos_codificados.decode("utf-8"):
-
-        bits_actuales += bit
-
-        for original_bit, codigo in tabla_huffman.items():
-
-            if codigo == bits_actuales:
-
-                datos_binarios.append(original_bit)
-                bits_actuales = ""
-                break
-
-    return bytes(datos_binarios)
-
-#--------------------------------------------------------------------------------------------------------------------#
-
-# Cargar la canción original
 print("Cargando la canción original...\n")
 cancion_original = AudioSegment.from_file("rolita.mp3", format="mp3")
 time.sleep(3)
@@ -151,82 +83,112 @@ time.sleep(3)
 print("Codificando datos...\n")
 time.sleep(3)
 
-# Convertir la canción a binario y encriptar
 datos_binarios = cancion_original.raw_data
 
-# Guardar los datos binarios en un archivo
 with open("Cancion_codificada.dat", "wb") as archivo:
     archivo.write(datos_binarios)
 
 # Dividir los datos binarios en segmentos
 segmentos = [cancion_original[i:i + 2000] for i in range(0, len(cancion_original), 2000)]
 
-# Transmitir los datos a través del canal y recibir datos simulados
 print("Transmitiendo...\n")
 time.sleep(3)
-datos_recibidos, entropias = Canal(segmentos)  # Simulación de la transmisión
+datos_recibidos, entropias = Canal(segmentos)
 
-# Desencriptar los datos simulados
+#--------------------------------------------------------------------------------------------------------------------#
+
+"""
+print("Encriptando...\n")
+time.sleep(3)
+datos_encriptados = [comprimir_huffman(dato.raw_data) for dato in datos_recibidos]
+
 print("Desencriptando...\n")
 time.sleep(3)
-datos_desencriptados = [desencriptar(dato.raw_data) for dato in datos_recibidos]
+datos_desencriptados = [descomprimir_huffman(dato.raw_data, tabla_huffman) for dato, tabla_huffman in zip(datos_recibidos, datos_encriptados)]
+"""
+
+#--------------------------------------------------------------------------------------------------------------------#
+
+"""
+print("Comprimiendo...\n")
+time.sleep(3)
+datos_encriptados, arbol = comprimir_shannon_fano(datos_binarios)
+
+print("Descomprimiendo...\n")
+time.sleep(3)
+datos_desencriptados = descomprimir_shannon_fano(datos_encriptados, arbol)
+datos_desencriptados = bytes(datos_desencriptados)
+
+"""
+
+#--------------------------------------------------------------------------------------------------------------------#
+
+"""
+print("Comprimiendo...\n")
+time.sleep(3)
+datos_encriptados = comprimir_vbr(datos_binarios)
+
+print("Descomprimiendo...\n")
+time.sleep(3)
+datos_desencriptados = descomprimir_vbr(datos_encriptados)
+datos_desencriptados = bytes(datos_desencriptados)
+
+"""
+
+#--------------------------------------------------------------------------------------------------------------------#
+
+#"""
+print("Comprimiendo...\n")
+time.sleep(3)
+datos_encriptados = comprimir_RLE(datos_binarios)
+
+print("Descomprimiendo...\n")
+time.sleep(3)
+datos_desencriptados = descomprimir_RLE(datos_encriptados)
+datos_desencriptados = bytes(datos_desencriptados)
+
+#"""
+
+#--------------------------------------------------------------------------------------------------------------------#
 
 entropia_total = -sum(p * math.log2(p) for p in entropias if p > 0)
-print(f'La entropía del esquema es de: {entropia_total:.2f} bits\n')
+print(f'La entropia del esquema es de: {entropia_total:.2f} bits\n')
 
 print('"Reproduciendo" canción...')
 
-# Reconstruir la canción modificada con ruido
-canción_modificada = AudioSegment.empty()
-tablas_huffman_segmentos = []  # Lista para almacenar las tablas de Huffman de cada segmento
+# Tamaño de segmento
+tamaño_segmento = len(segmentos[0].raw_data)
 
-for i, dato_desencriptado in enumerate(datos_desencriptados):
-    canción_modificada += AudioSegment(data=dato_desencriptado, frame_rate=cancion_original.frame_rate, sample_width=cancion_original.sample_width, channels=cancion_original.channels)
-    
-    # 1. Convertir el segmento a datos binarios
-    datos_binarios_segmento = dato_desencriptado
+# Inicializar una canción vacía
+canción_modificada = AudioSegment.silent(duration=0)
 
-    # 2. Calcular las frecuencias de los símbolos en el segmento
-    frecuencias_segmento = contar_frecuencias(datos_binarios_segmento)
+# Pista para realizar un seguimiento de la posición actual en la canción modificada
+posición_actual = 0
 
-    # 3. Construir un árbol de Huffman para el segmento
-    arbol_huffman_segmento = construir_arbol_huffman(frecuencias_segmento)
+for dato_desencriptado in datos_desencriptados:
 
-    # 4. Generar la tabla de Huffman para el segmento
-    tabla_huffman_segmento = [(simbolo, codigo, frecuencia) for simbolo, codigo in arbol_huffman_segmento for frecuencia in [frecuencias_segmento[simbolo]]]
+    # Verificar si dato_desencriptado es del tipo bytes antes de continuar
+    if isinstance(dato_desencriptado, bytes) and len(dato_desencriptado) == tamaño_segmento:
 
-    # Agregar la tabla de Huffman del segmento a la lista
-    tablas_huffman_segmentos.append(tabla_huffman_segmento)
+        # Agregar cada dato desencriptado directamente a la canción modificada
+        canción_modificada = canción_modificada.overlay(AudioSegment(data=dato_desencriptado, frame_rate=canción_original.frame_rate, sample_width=canción_original.sample_width, channels=canción_original.channels), position=posición_actual)
+        posición_actual += tamaño_segmento
 
-# Guardamos las tablas de Huffman en un archivo de texto
-with open("Tablas_Huffman.txt", "w") as archivo_huffman:
-    archivo_huffman.write("Tabla de Huffman de Segmentos:\n")
-
-    for i, tabla in enumerate(tablas_huffman_segmentos):
-
-        archivo_huffman.write(f"Segmento {i + 1}:\n")
-        archivo_huffman.write("Símbolo\tCódigo Huffman\tFrecuencia\n")
-
-        for simbolo, codigo, frecuencia in tabla:
-
-            archivo_huffman.write(f"{simbolo}\t{codigo}\t{frecuencia}\n")
-        archivo_huffman.write("\n")
+# Guardar la canción modificada con ruido en un archivo
+canción_modificada.export("cancion_modificada.wav", format="wav")
 
 # Crear una lista de números de segmentos para el eje x
 num_segmentos = list(range(len(entropias)))
 
-# Crear el gráfico de la curva de entropía
 plt.plot(num_segmentos, entropias, marker='o', linestyle='-')
 plt.xlabel('Número de Segmento')
 plt.ylabel('Entropía')
 plt.title('Curva de Entropía')
 plt.grid(True)
 
-# Establecer valores enteros en el eje x
 plt.xticks(num_segmentos)  
 plt.yticks([round(i, 2) for i in list(np.arange(0, 1.1, 0.1))])
 
-# Mostrar el gráfico
 plt.show()
 
 #--------------------------------------------------------------------------------------------------------------------#
