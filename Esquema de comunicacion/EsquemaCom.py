@@ -15,54 +15,68 @@ from RLE import comprimir_RLE, descomprimir_RLE
 #--------------------------------------------------------------------------------------------------------------------#
 
 # Función para simular un canal de transmisión (perfil A2DP de Bluetooth)
-def Canal(segmentos):
+def Canal(segmentos, canales):
 
-    datos_recibidos = []
-    entropias = []
+    datos_recibidos = [[] for _ in range(len(canales))]
+    entropias = [[] for _ in range(len(canales))]
 
-    for segmento in segmentos:
+    i = 0  # Índice para recorrer los segmentos
 
-        # Probabilidad de error en la transmisión
-        probabilidad_de_error = random.random()
-        # probabilidad_de_error = 0.3 
+    while i < len(segmentos):
 
-        entropia = calcular_Entropia(probabilidad_de_error)
-        entropias.append(entropia)
+        for j, canal in enumerate(canales):
 
-        if probabilidad_de_error >= 0.4 and probabilidad_de_error <= 0.6:
+            # Probabilidad de error en la transmisión
+            probabilidad_de_error = random.random()
+            
+            if i < len(segmentos):
+                segmento = segmentos[i]
+                segmento_con_ruido = simular_ruido(segmento, probabilidad_de_error)
 
-            # Segmento silencioso en caso de error
-            datos_recibidos.append(AudioSegment.silent(len(segmento)))  
+                if segmento_con_ruido is not None:
+                    canal.append(segmento_con_ruido)
+                    i += 1
 
-        else:
-
-            # Aplicar cambio de velocidad antes de transmitir
-            segmento_con_ruido = simular_ruido(segmento)
-            datos_recibidos.append(segmento_con_ruido)
+                    entropia = calcular_Entropia(probabilidad_de_error)
+                    entropias[j].append(entropia)
 
     return datos_recibidos, entropias
 
 #--------------------------------------------------------------------------------------------------------------------#
 
+# Función para asignar datos a canales usando modulación
+def modulacion(segmentos, canales):
+
+    i = 0 
+
+    while i < len(segmentos):
+
+        for canal in canales:
+
+            if i < len(segmentos):
+                canal.append(segmentos[i])
+                i += 1
+
+#--------------------------------------------------------------------------------------------------------------------#
+
 # Función para simular ruido: variación de velocidad
-def simular_ruido(segmento):
+def simular_ruido(segmento, probabilidad_de_error):
 
     # Evitar cambios de velocidad en segmentos muy cortos
-    if len(segmento) < 150: 
-        return segmento
+    if len(segmento) < 150:
+
+        return None  # No se transmite el segmento
 
     speed_factor = random.uniform(0.5, 1.8)
 
-    # Añade una verificación para evitar duración de fade igual a cero
-    if len(segmento) > 0:
-        segmento_con_ruido = segmento.speedup(speed_factor)
+    # Aplicar cambio de velocidad antes de transmitir
+    segmento_con_ruido = segmento.speedup(speed_factor)
+    
+    if random.random() < probabilidad_de_error:
+        return None  # No se transmite el segmento debido a un error
 
     else:
-        segmento_con_ruido = segmento
-
-        return segmento_con_ruido
-
-    return segmento
+        return segmento_con_ruido  # Se transmite el segmento con ruido
 
 #--------------------------------------------------------------------------------------------------------------------#
 
@@ -91,9 +105,15 @@ with open("Cancion_codificada.dat", "wb") as archivo:
 # Dividir los datos binarios en segmentos
 segmentos = [cancion_original[i:i + 2000] for i in range(0, len(cancion_original), 2000)]
 
+# Crear 5 canales de transmisión
+canales = [[] for _ in range(5)]
+
+# Asignar segmentos a los canales
+modulacion(segmentos, canales)
+
 print("Transmitiendo...\n")
 time.sleep(3)
-datos_recibidos, entropias = Canal(segmentos)
+datos_recibidos, entropias = Canal(segmentos, canales)
 
 #--------------------------------------------------------------------------------------------------------------------#
 
@@ -123,7 +143,7 @@ datos_desencriptados = bytes(datos_desencriptados)
 
 #--------------------------------------------------------------------------------------------------------------------#
 
-"""
+#"""
 print("Comprimiendo...\n")
 time.sleep(3)
 datos_encriptados = comprimir_vbr(datos_binarios)
@@ -133,11 +153,11 @@ time.sleep(3)
 datos_desencriptados = descomprimir_vbr(datos_encriptados)
 datos_desencriptados = bytes(datos_desencriptados)
 
-"""
+#"""
 
 #--------------------------------------------------------------------------------------------------------------------#
 
-#"""
+"""
 print("Comprimiendo...\n")
 time.sleep(3)
 datos_encriptados = comprimir_RLE(datos_binarios)
@@ -147,11 +167,23 @@ time.sleep(3)
 datos_desencriptados = descomprimir_RLE(datos_encriptados)
 datos_desencriptados = bytes(datos_desencriptados)
 
-#"""
+"""
 
 #--------------------------------------------------------------------------------------------------------------------#
 
-entropia_total = -sum(p * math.log2(p) for p in entropias if p > 0)
+entropia_total = 0
+
+for sublist in entropias:
+    
+    for p in sublist:
+
+        if p > 0:
+
+            entropia_total -= p * math.log2(p)
+
+# Crear una lista de números de segmentos para el eje x
+num_segmentos = list(range(len(entropias)))
+
 print(f'La entropia del esquema es de: {entropia_total:.2f} bits\n')
 
 print('"Reproduciendo" canción...')
@@ -177,10 +209,7 @@ for dato_desencriptado in datos_desencriptados:
 # Guardar la canción modificada con ruido en un archivo
 canción_modificada.export("cancion_modificada.wav", format="wav")
 
-# Crear una lista de números de segmentos para el eje x
-num_segmentos = list(range(len(entropias)))
-
-plt.plot(num_segmentos, entropias, marker='o', linestyle='-')
+plt.plot(num_segmentos, [p for sublist in entropias for p in sublist], marker='o', linestyle='-')
 plt.xlabel('Número de Segmento')
 plt.ylabel('Entropía')
 plt.title('Curva de Entropía')
