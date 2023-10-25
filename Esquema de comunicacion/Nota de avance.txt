@@ -1,0 +1,7 @@
+Nota de avance:
+
+Debido a varios problemas respecto al manejo de audio y de compresión/descompresión, decidí cambiar el tipo de archivo que manejo, ya que el audio que yo estoy manejando se corrompe tras aplicar las compresiones. Por lo tanto, también debo cambiar algunas de las funciones de encriptación para que se adecuen mejor a mi nuevo tipo de archivo.
+
+En cuanto a la modulación, como ahora calculo la entropía de una lista de canales, al momento de querer graficarla me encuentro con errores de dimensión entre los datos, por lo que aún no logro ejecutar el código al 100% para saber qué está sucediendo de manera real.
+
+Fuera de esos dos problemas, el esquema funciona.
