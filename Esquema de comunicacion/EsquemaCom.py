@@ -14,13 +14,12 @@ from RLE import comprimir_RLE, descomprimir_RLE
 
 #--------------------------------------------------------------------------------------------------------------------#
 
-# Función para simular un canal de transmisión (perfil A2DP de Bluetooth)
 def Canal(segmentos, canales):
 
     datos_recibidos = [[] for _ in range(len(canales))]
     entropias = [[] for _ in range(len(canales))]
 
-    i = 0  # Índice para recorrer los segmentos
+    i = 0  # Recorre los segmentos
 
     while i < len(segmentos):
 
@@ -28,10 +27,10 @@ def Canal(segmentos, canales):
 
             # Probabilidad de error en la transmisión
             probabilidad_de_error = random.random()
-            
+
             if i < len(segmentos):
                 segmento = segmentos[i]
-                segmento_con_ruido = simular_ruido(segmento, probabilidad_de_error)
+                segmento_con_ruido = simular_ruido(segmento, probabilidad_de_error, j, i)
 
                 if segmento_con_ruido is not None:
                     canal.append(segmento_con_ruido)
@@ -47,36 +46,45 @@ def Canal(segmentos, canales):
 # Función para asignar datos a canales usando modulación
 def modulacion(segmentos, canales):
 
-    i = 0 
+    i = 0
+
+    print(f"Canales disponibles: {len(canales)}")
 
     while i < len(segmentos):
 
         for canal in canales:
 
             if i < len(segmentos):
+
                 canal.append(segmentos[i])
                 i += 1
 
 #--------------------------------------------------------------------------------------------------------------------#
 
-# Función para simular ruido: variación de velocidad
-def simular_ruido(segmento, probabilidad_de_error):
+def simular_ruido(segmento, probabilidad_de_error, canal_index, paquete_index):
 
-    # Evitar cambios de velocidad en segmentos muy cortos
-    if len(segmento) < 150:
+    canal_index += 1
+    paquete_index += 1
 
-        return None  # No se transmite el segmento
-
-    speed_factor = random.uniform(0.5, 1.8)
-
-    # Aplicar cambio de velocidad antes de transmitir
-    segmento_con_ruido = segmento.speedup(speed_factor)
-    
     if random.random() < probabilidad_de_error:
-        return None  # No se transmite el segmento debido a un error
 
+        print(f" XX Paquete {paquete_index} perdido en Canal {canal_index} XX")
+        reasignar_paquete = True
+
+        while reasignar_paquete:
+
+            canal_index = (canal_index % len(canales)) + 1
+            canal = canales[canal_index - 1]
+
+            if len(canal) < len(segmento):
+
+                canal.append(segmento)
+                print(f" -- Paquete {paquete_index} reasignado al Canal {canal_index} --\n")
+                reasignar_paquete = False
+                return None 
     else:
-        return segmento_con_ruido  # Se transmite el segmento con ruido
+        print(f"|| Paquete {paquete_index} enviado por el Canal {canal_index} ||\n")
+        return segmento
 
 #--------------------------------------------------------------------------------------------------------------------#
 
@@ -87,6 +95,22 @@ def calcular_Entropia(probabilidad_de_error):
     entropia = -(probabilidad_de_error * math.log2(probabilidad_de_error) + probabilidad_de_exito * math.log2(probabilidad_de_exito))
 
     return entropia
+
+#--------------------------------------------------------------------------------------------------------------------#
+
+def calcular_entropia_canal(entropias):
+
+    entropias_canal = [sum(entropia) for entropia in entropias]
+
+    return entropias_canal
+
+#--------------------------------------------------------------------------------------------------------------------#
+
+def calcular_entropia_total(entropias_canal):
+
+    entropia_total = sum(entropias_canal)
+
+    return entropia_total
 
 #--------------------------------------------------------------------------------------------------------------------#
 
@@ -111,7 +135,7 @@ canales = [[] for _ in range(5)]
 # Asignar segmentos a los canales
 modulacion(segmentos, canales)
 
-print("Transmitiendo...\n")
+print("\nTransmitiendo...\n")
 time.sleep(3)
 datos_recibidos, entropias = Canal(segmentos, canales)
 
@@ -144,7 +168,7 @@ datos_desencriptados = bytes(datos_desencriptados)
 #--------------------------------------------------------------------------------------------------------------------#
 
 #"""
-print("Comprimiendo...\n")
+print("\nComprimiendo...\n")
 time.sleep(3)
 datos_encriptados = comprimir_vbr(datos_binarios)
 
@@ -171,22 +195,16 @@ datos_desencriptados = bytes(datos_desencriptados)
 
 #--------------------------------------------------------------------------------------------------------------------#
 
-entropia_total = 0
+print("Calculando entropía de cada canal...")
+entropias_canal = calcular_entropia_canal(entropias)
 
-for sublist in entropias:
-    
-    for p in sublist:
+for i, entropia in enumerate(entropias_canal):
+    print(f"Canal {i + 1}: {entropia:.2f} bits")
 
-        if p > 0:
+entropia_total = calcular_entropia_total(entropias_canal)
+print(f'\nLa entropía total del esquema es de: {entropia_total:.2f} bits')
 
-            entropia_total -= p * math.log2(p)
-
-# Crear una lista de números de segmentos para el eje x
-num_segmentos = list(range(len(entropias)))
-
-print(f'La entropia del esquema es de: {entropia_total:.2f} bits\n')
-
-print('"Reproduciendo" canción...')
+print('\n"Reproduciendo" canción...')
 
 # Tamaño de segmento
 tamaño_segmento = len(segmentos[0].raw_data)
@@ -209,15 +227,13 @@ for dato_desencriptado in datos_desencriptados:
 # Guardar la canción modificada con ruido en un archivo
 canción_modificada.export("cancion_modificada.wav", format="wav")
 
-plt.plot(num_segmentos, [p for sublist in entropias for p in sublist], marker='o', linestyle='-')
-plt.xlabel('Número de Segmento')
+plt.plot(list(range(len(entropias_canal))), entropias_canal, marker='o', linestyle='-')
+plt.xlabel('Número de Canal')
 plt.ylabel('Entropía')
-plt.title('Curva de Entropía')
+plt.title('Entropía de Canales')
 plt.grid(True)
 
-plt.xticks(num_segmentos)  
-plt.yticks([round(i, 2) for i in list(np.arange(0, 1.1, 0.1))])
-
+plt.xticks(list(range(len(entropias_canal))))
 plt.show()
 
 #--------------------------------------------------------------------------------------------------------------------#
