@@ -46,8 +46,9 @@ def comprimir_vbr(datos_audio):
 #--------------------------------------------------------------------------------------------------------------------#
 
 # Función para descomprimir datos usando Britate Variable
-def descomprimir_vbr(datos_comprimidos):
+def descomprimir_vbr(datos_comprimidos_y_hashes):
 
+    datos_comprimidos = [dato for hash_dato, dato in datos_comprimidos_y_hashes]
     datos_audio = []
     silencio = True
 

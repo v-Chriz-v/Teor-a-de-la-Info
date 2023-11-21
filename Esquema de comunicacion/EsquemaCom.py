@@ -11,6 +11,7 @@ from huffman import contar_frecuencias, construir_arbol_huffman, comprimir_huffm
 from ShannonFano import contar_frecuencias, construir_arbol_shannon_fano, comprimir_shannon_fano, descomprimir_shannon_fano
 from Britate_Variable import comprimir_vbr, descomprimir_vbr
 from RLE import comprimir_RLE, descomprimir_RLE
+import hashlib
 
 #--------------------------------------------------------------------------------------------------------------------#
 
@@ -66,7 +67,7 @@ def simular_ruido(segmento, probabilidad_de_error, canal_index, paquete_index):
     canal_index += 1
     paquete_index += 1
 
-    if random.random() < probabilidad_de_error:
+    if 5 < probabilidad_de_error:
 
         print(f" XX Paquete {paquete_index} perdido en Canal {canal_index} XX")
         reasignar_paquete = True
@@ -83,7 +84,7 @@ def simular_ruido(segmento, probabilidad_de_error, canal_index, paquete_index):
                 reasignar_paquete = False
                 return None 
     else:
-        print(f"|| Paquete {paquete_index} enviado por el Canal {canal_index} ||\n")
+        #print(f"|| Paquete {paquete_index} enviado por el Canal {canal_index} ||\n")
         return segmento
 
 #--------------------------------------------------------------------------------------------------------------------#
@@ -111,6 +112,47 @@ def calcular_entropia_total(entropias_canal):
     entropia_total = sum(entropias_canal)
 
     return entropia_total
+
+#--------------------------------------------------------------------------------------------------------------------#
+
+def calcular_hash(dato):
+
+    hash_objeto = hashlib.sha256()
+    hash_objeto.update(dato)
+
+    return hash_objeto.hexdigest()
+
+#--------------------------------------------------------------------------------------------------------------------#
+
+def busqueda_binaria(lista, dato):
+
+    baja = 0
+    alta = len(lista) - 1
+    
+    while baja <= alta:
+        medio = (baja + alta) // 2
+        
+        if lista[medio][0] == dato:
+            return medio
+        
+        elif lista[medio][0] < dato:
+            
+            baja = medio + 1
+        else:
+            alta = medio - 1
+
+    return -1
+
+#--------------------------------------------------------------------------------------------------------------------#
+
+def leer_datos_desde_archivo(ruta_archivo):
+    with open(ruta_archivo, 'r') as archivo:
+        contenido = archivo.readlines()
+
+    # Asumiendo que cada línea contiene un par de datos en el formato "hash:dato_encriptado"
+    datos = [tuple(linea.strip().split(':')) for linea in contenido]
+
+    return datos
 
 #--------------------------------------------------------------------------------------------------------------------#
 
@@ -168,14 +210,33 @@ datos_desencriptados = bytes(datos_desencriptados)
 #--------------------------------------------------------------------------------------------------------------------#
 
 #"""
-print("\nComprimiendo...\n")
+print("Comprimiendo...\n")
 time.sleep(3)
 datos_encriptados = comprimir_vbr(datos_binarios)
 
+print("Hasheando...\n")
+time.sleep(3)
+datos_encriptados_y_hashes = []
+
+for dato_encriptado in datos_encriptados:
+
+    hash_dato = calcular_hash(str(dato_encriptado).encode())
+    datos_encriptados_y_hashes.append((hash_dato, dato_encriptado))
+
+datos_encriptados_y_hashes.sort()
+
+# Guardar la tabla con los datos encriptados y sus hashes en un archivo
+with open("tabla_datos_hashes.txt", "w") as archivo:
+
+    for hash_dato, dato_encriptado in datos_encriptados_y_hashes:
+        archivo.write(f"{hash_dato}: {dato_encriptado}\n")
+
+
 print("Descomprimiendo...\n")
 time.sleep(3)
-datos_desencriptados = descomprimir_vbr(datos_encriptados)
+datos_desencriptados = descomprimir_vbr(datos_encriptados_y_hashes)
 datos_desencriptados = bytes(datos_desencriptados)
+
 
 #"""
 
@@ -195,7 +256,39 @@ datos_desencriptados = bytes(datos_desencriptados)
 
 #--------------------------------------------------------------------------------------------------------------------#
 
-print("Calculando entropía de cada canal...")
+print("Buscando datos...\n")
+time.sleep(3)
+
+# Reemplaza "ruta_a_tu_archivo" con la ruta a tu archivo que contiene los datos
+ruta_archivo = "tabla_datos_hashes.txt"
+
+# Leer datos desde archivo
+datos = leer_datos_desde_archivo(ruta_archivo)
+
+# Extraer los códigos hash originales de los datos encriptados
+codigos_hash_originales = [hash_original for hash_original, _ in datos]
+
+encontrados = 0
+no_encontrados = 0
+
+for hash_a_buscar in codigos_hash_originales:
+    indice_encontrado = busqueda_binaria(datos, hash_a_buscar)
+
+    # Resultado de la Búsqueda
+    if indice_encontrado != -1:
+        hash_original_encontrado, dato_encriptado_encontrado = datos[indice_encontrado]
+        #print(f"Código hash original encontrado: {hash_original_encontrado}")
+        encontrados = encontrados + 1
+    else:
+        #print(f"Código hash original {hash_a_buscar} no encontrado en los datos encriptados")
+        no_encontrados = no_encontrados + 1
+
+print(f"Codigos encontrados: {encontrados}\n")
+print(f"Codigos NO encontrados: {no_encontrados}\n")
+
+#--------------------------------------------------------------------------------------------------------------------#
+
+print("Calculando entropía de cada canal...\n")
 entropias_canal = calcular_entropia_canal(entropias)
 
 for i, entropia in enumerate(entropias_canal):
