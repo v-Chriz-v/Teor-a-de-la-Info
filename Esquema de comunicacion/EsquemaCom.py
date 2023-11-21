@@ -149,7 +149,6 @@ def leer_datos_desde_archivo(ruta_archivo):
     with open(ruta_archivo, 'r') as archivo:
         contenido = archivo.readlines()
 
-    # Asumiendo que cada línea contiene un par de datos en el formato "hash:dato_encriptado"
     datos = [tuple(linea.strip().split(':')) for linea in contenido]
 
     return datos
@@ -259,10 +258,8 @@ datos_desencriptados = bytes(datos_desencriptados)
 print("Buscando datos...\n")
 time.sleep(3)
 
-# Reemplaza "ruta_a_tu_archivo" con la ruta a tu archivo que contiene los datos
 ruta_archivo = "tabla_datos_hashes.txt"
 
-# Leer datos desde archivo
 datos = leer_datos_desde_archivo(ruta_archivo)
 
 # Extraer los códigos hash originales de los datos encriptados
